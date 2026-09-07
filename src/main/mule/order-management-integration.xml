@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <apikit:config name="Router" api="order-management-api.raml" outboundHeadersMapName="outboundHeadersMapName" httpStatusVarName="httpStatus" />
+    <http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="851ffb37-33ee-46c8-8115-1782a790185a">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+	<flow name="order-management-integrationFlow" doc:id="78a56352-252d-4f53-a5bc-fb1ffc78778c">
+        <http:listener doc:name="Listener" doc:id="7b4d491d-cf7e-4c7d-93db-ce93d7af50a4" config-ref="HTTP_Listener_config" path="/api/*" >
+			<http:response statusCode="#[vars.httpStatus default 201]" />
+			<http:error-response statusCode="400" />
+		</http:listener>
+        <apikit:router doc:name="APIkit Router" doc:id="4f188771-8b6b-4e83-a3fa-e2890592f3a0" config-ref="Router" />
+    </flow>
+    <flow name="post:\orders:application\json:Router">
+		<set-variable value="#[uuid()]" doc:name="Set Variable" doc:id="bbfaa948-897b-4076-b1b8-55c1ed42b09d" variableName="correlationId" />
+		<logger level="INFO" doc:name="Logger" doc:id="bcbf1e61-2d8f-4a91-9c11-db5b74a83174" message="Order request received - Correlation ID: #[vars.correlationId]"/>
+		<validation:is-not-blank-string doc:name="Is not blank string" doc:id="0c0fc921-c61f-4aca-b994-8c30442c4df1" value="#[payload.customerId]" message="customerId must not be blank"/>
+		<validation:is-not-blank-string doc:name="Is not blank string" doc:id="17978fb6-96aa-47ba-aa2d-923173c61448" message="customerName must not be blank" value="#[payload.customerName]"/>
+		<validation:is-not-blank-string doc:name="Is not blank string" doc:id="3dbd6411-d4d5-4ea3-b712-ba1bd257016d" value="#[payload.email]" message="email must not be blank"/>
+		<validation:is-true doc:name="Is true" doc:id="a642d1ed-2b01-4ef1-99e7-2ca03c6b151b" expression="#[!isEmpty(payload.items)]" message="items must contain at least one product"/>
+		<validation:is-true doc:name="Is true" doc:id="9a8eaff2-15f3-4f52-a1af-02822ad50a8d" expression="#[isEmpty(payload.items filter ((item) -&gt; isEmpty(item.productId)))]" message="Every item must have a productId"/>
+		<validation:is-true doc:name="Is true" doc:id="1821e76c-4b30-427a-b70a-de6b33e69f00" expression="#[isEmpty(payload.items filter ((item) -&gt; item.quantity &lt;= 0))]" message="Every item quantity must be greater than 0"/>
+		<set-variable value="201" doc:name="Set Variable" doc:id="dded8802-1488-40cd-aa9a-c6af77f768ba" variableName="httpStatus"/>
+		<ee:transform doc:name="Transform Message" doc:id="07fa14f1-286a-4271-bd0d-5d7a851e82a5" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "SUCCESS",
+    correlationId: vars.correlationId,
+    customerId: payload.customerId,
+    customerName: payload.customerName,
+    email: payload.email,
+    items: payload.items,
+    message: "Order request accepted successfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="dc038f62-6467-4d0f-8bde-db6dcb87eaf1" type="VALIDATION:VALIDATION">
+				<ee:transform doc:name="Transform Message" doc:id="693d4d1f-2839-4d9b-bc1d-85f62a957584" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "ERROR",
+    message: error.description default "Invalid order request",
+    correlationId: vars.correlationId default null
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set Variable" doc:id="eeea628f-a06d-4ba0-90e6-e6fd8aca7179" variableName="httpStatus"/>
+			</on-error-continue>
+		</error-handler>
+    </flow>
+</mule>
