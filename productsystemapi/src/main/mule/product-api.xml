@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config1" doc:name="HTTP Listener config" doc:id="c34e06c6-09c9-4135-a580-98aecd876be7" >
+		<http:listener-connection host="0.0.0.0" port="8082" />
+	</http:listener-config>
+	<flow name="productApiFlow" doc:id="249a7ed8-2003-46bd-80bd-7915aab4178a" >
+		<http:listener doc:name="Listener" doc:id="4cdceb8b-e023-4552-a3ae-6428473bab3e" path="/products/{productId}" config-ref="HTTP_Listener_config1">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+			<http:error-response >
+				<http:headers ><![CDATA[#[output application/java
+---
+{
+	
+}]]]></http:headers>
+			</http:error-response>
+		</http:listener>
+		<try doc:name="Try" doc:id="c3a30803-ce83-4072-b523-5919d09314b7" >
+			<ee:transform doc:name="Transform Message" doc:id="1b7755e5-91c3-4b85-8a47-af801409fbe3" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+var products = [
+    {
+        productId: "P1001",
+        productName: "Laptop",
+        price: 60000,
+        availableStock: 10
+    },
+    {
+        productId: "P1002",
+        productName: "Mobile",
+        price: 25000,
+        availableStock: 20
+    },
+    {
+        productId: "P1003",
+        productName: "Headphones",
+        price: 5000,
+        availableStock: 50
+    },
+    {
+        productId: "P1004",
+        productName: "Keyboard",
+        price: 3000,
+        availableStock: 30
+    }
+]
+
+---
+products filter ($.productId == attributes.uriParams.productId)]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<error-handler >
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="89d23cfb-7a9a-4389-9ab8-f80c368b71ee" >
+					<logger level="INFO" doc:name="Logger" doc:id="e512e16a-6d37-4a05-9ab0-c4e590dc22b1" message="Product API unexpected error: #[error.description]"/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<choice doc:name="Choice" doc:id="34f29178-5e1c-4d6c-bfdc-c1e8c4ed182d" >
+			<when expression="#[sizeOf(payload) &gt; 0]">
+				<set-variable value="#[200]" doc:name="Set Variable" doc:id="6fd27e14-b909-4d19-a9fa-1d0c11e8f64c" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="bae98fc4-b3ca-408f-9cc2-1e96f94686c0" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="44346d49-9a4e-4d05-8b15-425c2fe1833e" message="Product found: #[payload.productId], Stock: #[payload.availableStock]"/>
+			</when>
+			<otherwise >
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="391e6b3b-71ae-44cf-9224-e2b81397dbca" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="42c5630a-f446-4173-91cf-dbdb0121ca20" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Product not found",
+    productId: attributes.uriParams.productId
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="f3d0220b-7c24-45ae-87a5-a4029018e184" message="Product not found: #[attributes.uriParams.productId]"/>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>
