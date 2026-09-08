@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:mongo="http://www.mulesoft.org/schema/mule/mongo" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/mongo http://www.mulesoft.org/schema/mule/mongo/current/mule-mongo.xsd">
+    <http:listener-config name="order-management-apiraml-httpListenerConfig" method="PUT" body="#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;    customerId: vars.order.customerId,&#10;    productId: vars.order.productId,&#10;    quantity: vars.order.quantity&#10;}]" path="/external/orders" doc:id="ebe11af8-8036-4c2f-9159-4d5ca81cd307" config-ref="HTTP_Request_configuration_2" targetValue="#[payload]">
+        <http:listener-connection host="localhost" port="8081" />
+    </http:listener-config>
+    <apikit:config name="order-management-apiraml-config" api="order-management-apiraml.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <http:request-config name="HTTP_Request_configuration_1" doc:name="HTTP Request configuration" doc:id="d90231e6-bf7c-4b09-b1a0-7234163f6a8b" basePath="/products" >
+		<http:request-connection host="localhost" port="8083"/>
+	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration_2" doc:name="HTTP Request configuration" doc:id="c39fc34c-28c8-49ba-a02d-f43fe920ec25">
+		<http:request-connection host="localhost" port="8082" />
+	</http:request-config>
+	<flow name="order-management-apiraml-main">
+        <http:listener config-ref="order-management-apiraml-httpListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 201]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="order-management-apiraml-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">400</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="order-management-apiraml-console">
+        <http:listener config-ref="order-management-apiraml-httpListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[vars.outboundHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="order-management-apiraml-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="put:\orders\(orderId):application\json:order-management-apiraml-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="orderId">attributes.uriParams.'orderId'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  orderId: "ORD1001",
+  status: "UPDATED",
+  message: "Order updated successfully"
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="delete:\orders\(orderId):order-management-apiraml-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="orderId">attributes.uriParams.'orderId'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  orderId: "ORD1001",
+  status: "CANCELLED",
+  message: "Order cancelled successfully"
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\orders:order-management-apiraml-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+[
+  {
+    orderId: "ORD1001",
+    customerId: "CUST001",
+    status: "CONFIRMED",
+    totalAmount: 10800
+  }
+] as Array {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\orders\(orderId):order-management-apiraml-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="orderId">attributes.uriParams.'orderId'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  orderId: "ORD1001",
+  customerId: "CUST001",
+  status: "CONFIRMED",
+  totalAmount: 10800
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+	<flow name="post:\orders:application\json:order-management-apiraml-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[//%dw 2.0
+//output application/json
+//---
+//{	
+//  orderId: "ORD1001",
+//  status: "CONFIRMED",
+//  customerId: "CUST001",
+//  productId: "PROD1001",
+//  quantity: 2,
+//  subtotal: 12000,
+//  discount: 1200,
+//  totalAmount: 10800,
+//  message: "Order created successfully"
+//} as Object {encoding: "UTF-8", mediaType: "application/json"}
+%dw 2.0
+output application/java
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="7bba63ca-b69f-4638-af05-de1a2e149009" variableName="order"/>
+		<choice doc:name="Choice" doc:id="54a5c852-2c7c-49d9-8bd9-88ea4f252f80" >
+			<when expression='#[vars.order.customerId == null&#10;or vars.order.customerId == ""&#10;or vars.order.productId == null&#10;or vars.order.productId == ""&#10;or vars.order.quantity == null&#10;or vars.order.quantity &lt;= 0]'>
+				<raise-error doc:name="Raise error" doc:id="a7f2061a-cb46-4eb6-a27a-6cca95420d46" type="APP:BAD_REQUEST" description="Invalid request. Please provide customerId, productId and quantity."/>
+			</when>
+			<otherwise>
+				<http:request method="GET" doc:name="Request" doc:id="295b46c4-9be3-4830-baaf-b53243e01002" config-ref="HTTP_Request_configuration_1" url="http://localhost:8083/products">
+			<http:query-params><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+    productId: vars.order.productId
+}]]]></http:query-params>
+		</http:request>
+			</otherwise>
+		</choice>
+		<choice doc:name="Choice" doc:id="e838a582-95b0-436c-b77b-18c328674be4" >
+			<when expression="#[payload.productId == vars.order.productId &#10;   and payload.available == true&#10;   and vars.order.quantity &lt;= payload.availableQuantity]">
+				<ee:transform doc:name="Transform Message" doc:id="1bed5fc8-f7c4-48fa-84e5-d68679c6c13d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+var price = payload.price default 0
+
+var discount =
+    if (price > 10000)
+        price * 0.10
+    else
+        0
+
+var finalPrice = price - discount
+
+---
+{
+    productId: payload.productId,
+    price: price,
+    discount: discount,
+    finalPrice: finalPrice,
+    message:
+        if (price > 10000)
+            "Congratulations! You got 10% discount because the product price is above 10,000."
+        else
+            "Product price is 10,000 or below. No discount is available."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="#[payload]" doc:name="Set Variable" doc:id="2d319017-d7b7-4224-8ee0-867602f18dfe" variableName="orderPricing"/>
+				<try doc:name="Try" doc:id="332a836a-a6c2-42ee-acd3-e5e81dc87e7c" >
+					<http:request method="PUT" doc:name="Request" doc:id="ebe11af8-8036-4c2f-9159-4d5ca81cd307" config-ref="HTTP_Request_configuration_2" path="/external/orders">
+					<http:body><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+    customerId: vars.order.customerId,
+    productId: vars.order.productId,
+    quantity: vars.order.quantity
+}]]]></http:body>
+				</http:request>
+					<set-variable value='#[%dw 2.0&#10;output application/java&#10;---&#10;{&#10;    orderId: "ORD-" ++ uuid(),&#10;    customerId: vars.order.customerId,&#10;    productId: vars.order.productId,&#10;    quantity: vars.order.quantity,&#10;    price: vars.orderPricing.price,&#10;    discount: vars.orderPricing.discount,&#10;    finalPrice: vars.orderPricing.finalPrice,&#10;    status: "CREATED"&#10;}]' doc:name="Set Variable" doc:id="0f622f7c-c7a2-4401-b95b-3ecb66b2407d" variableName="orderToSave"/>
+					<logger level="INFO" doc:name="Logger" doc:id="32207e6f-5168-4056-81bf-0361befa2643" message="#[vars.orderToSave]"/>
+					<flow-ref doc:name="Flow Reference" doc:id="cd951be9-25c0-458f-83c4-8639dca2e5f1" name="create-order-db"/>
+					<ee:transform doc:name="Transform Message" doc:id="b171464e-729d-42e7-a683-4a8ae91e6336">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    orderId: vars.orderToSave.orderId,
+    status: vars.orderToSave.status,
+    customerId: vars.orderToSave.customerId,
+    productId: vars.orderToSave.productId,
+    quantity: vars.orderToSave.quantity,
+    price: vars.orderToSave.price,
+    discount: vars.orderToSave.discount,
+    finalPrice: vars.orderToSave.finalPrice,
+    message: vars.orderPricing.message
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+					<error-handler >
+						<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="f3d776a9-361a-49b6-9bb5-9740f4951ede" type="HTTP:CONNECTIVITY">
+							<ee:transform doc:name="Transform Message" doc:id="585b991e-5de0-4b6a-bd07-1d1fe17ce598" >
+								<ee:message >
+									<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+---
+{
+    status: 502,
+    error: "BAD_GATEWAY",
+    message: "Unable to communicate with the external Order API."
+}]]></ee:set-payload>
+								</ee:message>
+							</ee:transform>
+							<set-variable value="#[502]" doc:name="Set Variable" doc:id="0f9f7175-0690-4479-90b6-83aaf6eac0d5" variableName="httpStatus"/>
+						</on-error-continue>
+					</error-handler>
+				</try>
+			</when>
+			<when expression='#[payload.status == "NOT_FOUND"]'>
+				<ee:transform doc:name="Transform Message" doc:id="c19e6f6a-c9c5-4f51-a61c-46d036e74a4f" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+---
+{
+    status: 404,
+    error: "PRODUCT_NOT_FOUND",
+    productId: vars.order.productId,
+    message: "Product not found."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="de4c36a1-36ed-484a-a950-2089e86f7fce" variableName="httpStatus"/>
+			</when>
+			<when expression="#[(payload.productId == vars.order.productId)&#10;and&#10;(&#10;    payload.available != true&#10;    or&#10;    vars.order.quantity &gt; payload.availableQuantity&#10;)]">
+				<ee:transform doc:name="Transform Message" doc:id="fd6e3b5c-a1e3-4d41-869a-057be969a6d1" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+---
+{
+    status: 409,
+    error: "PRODUCT_UNAVAILABLE",
+    productId: vars.order.productId,
+    quantity: vars.order.quantity,
+    availableQuantity: payload.availableQuantity default 0,
+    message: "Product is unavailable or requested quantity exceeds available stock."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="#[409]" doc:name="Set Variable" doc:id="76d68d68-1039-47f5-a451-698264d10fe3" variableName="httpStatus"/>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="78f25c06-2021-4a4b-a1ef-a57bde148fc3" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "REJECTED",
+    productId: payload.productId,
+    message: "Product is not available"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="7dea1d7c-469a-4e79-bfd9-528eb1c3d54c" >
+				<ee:transform doc:name="Transform Message" doc:id="4c619ac0-afc9-4df3-9439-9b1ade948bc1" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+---
+{
+    status: 400,
+    error: "BAD_REQUEST",
+    message: "Invalid request. Please provide customerId, productId and quantity."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="#[400]" doc:name="Set Variable" doc:id="474d83c6-ae2d-4fb2-91a0-cc4fe1add532" variableName="httpStatus" />
+			</on-error-continue>
+		</error-handler>
+    </flow>
+</mule>
