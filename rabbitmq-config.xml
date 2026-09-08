@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:amqp="http://www.mulesoft.org/schema/mule/amqp"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:mqtt3="http://www.mulesoft.org/schema/mule/mqtt3" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/mqtt3 http://www.mulesoft.org/schema/mule/mqtt3/current/mule-mqtt3.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/amqp http://www.mulesoft.org/schema/mule/amqp/current/mule-amqp.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<amqp:config name="RabbitMQ_Config" doc:name="AMQP Config" doc:id="3efb4c3e-49e5-494c-9e8b-a65aed34047e" >
+		<amqp:connection host="localhost" port="5672" username="guest" password="guest" />
+	</amqp:config>
+	<http:listener-config name="HTTP_Listener_config_4" doc:name="HTTP Listener config" doc:id="abf27e2a-eb32-4171-a08c-8712b6b5852b" mandatory="false" transactionalAction="JOIN_IF_POSSIBLE" skipExchangeValidation="YES" immediate="false" config-ref="RabbitMQ_Config" requestBrokerConfirms="false" exchangeName="orders.exchange">
+		<http:listener-connection host="localhost" port="8020" />
+	</http:listener-config>
+	<flow name="rabbitmq-configFlow1" doc:id="63efae4e-3979-405b-b800-284fa58b2107" >
+		<amqp:listener doc:name="Listener" doc:id="4f08a84c-955d-495b-954f-48606e02cd11" config-ref="RabbitMQ_Config" queueName="orders.queue"/>
+		<db:insert doc:name="Insert" doc:id="31545743-522e-4988-a027-138cb13a1021" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO orders
+(order_id, customer_id, product_id, quantity, status, created_at)
+VALUES
+(:orderId, :customerId, :productId, :quantity, :status, NOW());]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+  "orderId":payload.orderId,
+  "customerId":payload.customerId,
+  "productId":payload.productId,
+  "quantity":payload.quantity,
+  "status": payload.status
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="c9a91cfb-a7d4-4be3-8b9d-55233a16b090" message="#[payload]"/>
+	</flow>
+	<flow name="rabbitmq-configFlow" doc:id="47a211a6-414a-46ae-973f-9963833dc46e" >
+		<http:listener doc:name="Listener" doc:id="f8ad58e8-7f1b-40f4-bc30-4afcfd0b4215" config-ref="HTTP_Listener_config_4" path="/rabbit-test"/>
+		<ee:transform doc:name="Transform Message" doc:id="1b08aec9-5120-4d82-a760-e517bc5af114" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<amqp:publish doc:name="Publish" doc:id="abf27e2a-eb32-4171-a08c-8712b6b5852b" config-ref="RabbitMQ_Config" exchangeName="orders.exchange" skipExchangeValidation="YES">
+			<amqp:routing-keys >
+				<amqp:routing-key value="orders" />
+			</amqp:routing-keys>
+		</amqp:publish>
+	</flow>
+</mule>
