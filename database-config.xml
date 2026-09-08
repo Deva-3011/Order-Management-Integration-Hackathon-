@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="025bd49a-52cd-4510-8b14-a88b17e27003" >
+		<db:my-sql-connection host="mysql-8200fd6-smohammedparvesh-57d9.l.aivencloud.com" port="11173" user="avnadmin" password="AVNS_bhKVQZXpNOgnCJIaohk" database="order_management" />
+	</db:config>
+	<flow name="database-configFlow" doc:id="ad1878cb-feea-40a3-ad8e-139da850b9f2" >
+		<http:listener doc:name="Listener" doc:id="87337610-fdae-4c38-83ba-216f85e7e0cd" config-ref="HTTP_Listener_config_4" path="/test-db"/>
+		<ee:transform doc:name="Transform Message" doc:id="5c472629-57e1-4249-8c62-5cedec2be80a" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "Database connection flow is working"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<sub-flow name="create-order-db" doc:id="f53d4100-bb01-44f1-a866-3fd954561e34" >
+		<db:insert doc:name="Insert" doc:id="b3cc8675-1e4a-4f45-bef6-5806f5c427d6" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO orders
+(
+    order_id,
+    customer_id,
+    product_id,
+    quantity,
+    price,
+    discount,
+    final_price,
+    status
+)
+VALUES
+(
+    :orderId,
+    :customerId,
+    :productId,
+    :quantity,
+    :price,
+    :discount,
+    :finalPrice,
+    :status
+)]]></db:sql>
+			<db:input-parameters><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+    orderId: vars.orderToSave.orderId,
+    customerId: vars.orderToSave.customerId,
+    productId: vars.orderToSave.productId,
+    quantity: vars.orderToSave.quantity,
+    price: vars.orderToSave.price,
+    discount: vars.orderToSave.discount,
+    finalPrice: vars.orderToSave.finalPrice,
+    status: vars.orderToSave.status
+}]]]></db:input-parameters>
+		</db:insert>
+	</sub-flow>
+</mule>

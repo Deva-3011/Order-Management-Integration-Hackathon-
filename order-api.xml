@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:amqp="http://www.mulesoft.org/schema/mule/amqp" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/amqp http://www.mulesoft.org/schema/mule/amqp/current/mule-amqp.xsd">
+	<http:listener-config name="HTTP_Listener_config_3" doc:name="HTTP Listener config" doc:id="e0faa7ad-4000-4691-acdc-01efce8cc91b" >
+		<http:listener-connection host="0.0.0.0" port="8083" />
+	</http:listener-config>
+	<flow name="order-apiFlow" doc:id="8e18fcb0-8368-4b9e-bd00-4e1c7cf2097d" >
+		<http:listener doc:name="Listener" doc:id="c5ea21d4-80ea-4ee4-98d8-e104a8f302c4" path="/external/orders" config-ref="HTTP_Listener_config_2" outputMimeType="application/json"/>
+		<choice doc:name="Choice" doc:id="4c60c1cb-d428-45a3-9ebc-04a866e38d90" >
+			<when expression="#[payload.quantity &lt;= 10]">
+				<ee:transform doc:name="Transform Message" doc:id="a62a76d8-3988-47d8-a5c4-49358f0933ae">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+    orderId: "ORD-" ++ uuid(),
+    customerId: vars.order.customerId,
+    productId: vars.order.productId,
+    quantity: vars.order.quantity,
+    price: vars.orderPricing.price,
+    discount: vars.orderPricing.discount,
+    finalPrice: vars.orderPricing.finalPrice,
+    status: "CREATED"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[payload.quantity &gt;= 10]">
+				<ee:transform doc:name="Transform Message" doc:id="ea906d3b-3105-4a87-9344-e1a183b5350e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "REJECTED",
+    customerId: payload.customerId,
+    productId: payload.productId,
+    quantity: payload.quantity,
+    message: "Order not created. Insufficient product quantity"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+		</choice>
+		<amqp:publish doc:name="Publish" doc:id="f8bf45dc-3786-40c3-9231-8ad574eaa507" config-ref="RabbitMQ_Config" exchangeName="orders.exchange">
+			<amqp:routing-keys >
+				<amqp:routing-key value="orders" />
+			</amqp:routing-keys>
+		</amqp:publish>
+	</flow>
+</mule>
